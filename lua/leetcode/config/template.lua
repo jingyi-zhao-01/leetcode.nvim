@@ -24,6 +24,7 @@
 ---| "enter"
 ---| "question_enter"
 ---| "leave"
+---| "on_submit"
 
 ---@alias lc.size
 ---| string
@@ -120,6 +121,10 @@ local M = {
 
         ---@type fun()[]
         ["leave"] = {},
+
+        ---@type fun(question: lc.ui.Question, buffer: string, status_msg: string|nil)[]
+        ["on_submit"] = {},
+
     },
 
     keys = {

@@ -4,6 +4,7 @@ local log = require("leetcode.logger")
 local interpreter = require("leetcode.api.interpreter")
 local config = require("leetcode.config")
 local Judge = require("leetcode.logger.spinner.judge")
+local utils = require("leetcode.utils")
 
 ---@type Path
 local leetbody = config.storage.cache:joinpath("body")
@@ -64,7 +65,11 @@ function Runner:handle(submit)
         end
 
         if item then
-            question.console.result:handle(item)
+            question.console.result:handle(item)            
+
+            if item._.submission then
+                utils.exec_hooks("on_submit", question, body.typed_code, item.status_msg)
+            end
         end
     end
 
