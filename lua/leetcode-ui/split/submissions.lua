@@ -30,6 +30,14 @@ local function status_hl(status)
     return "leetcode_normal"
 end
 
+local function status_icon(status)
+    if status == "Accepted" then
+        return config.icons.status.ac, "leetcode_easy"
+    end
+
+    return config.icons.status.notac, "leetcode_hard"
+end
+
 local function trim_timestamp(timestamp)
     if not timestamp or timestamp == "" then
         return "unknown"
@@ -72,8 +80,8 @@ function Submissions:populate()
             layout:insert(title)
 
             local details = Line()
-            details:append("result=", "leetcode_list")
-            details:append(submission.submit_result or "Unknown", status_hl(submission.submit_result))
+            local icon, icon_hl = status_icon(submission.submit_result)
+            details:append(icon, icon_hl)
             details:append("  time=", "leetcode_list")
 
             local time_spent = submission.time_spent_minutes
@@ -85,6 +93,8 @@ function Submissions:populate()
 
             details:append("  test=", "leetcode_list")
             details:append(submission.is_test and "yes" or "no", submission.is_test and "leetcode_medium" or "leetcode_normal")
+            details:append("  ", "leetcode_list")
+            details:append(submission.submit_result or "Unknown", status_hl(submission.submit_result))
             layout:insert(details)
 
             if index < #self.submissions then
