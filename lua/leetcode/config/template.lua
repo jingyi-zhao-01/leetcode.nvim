@@ -22,6 +22,7 @@
 
 ---@alias lc.hook
 ---| "enter"
+---| "problem_description_open"
 ---| "question_enter"
 ---| "question_leave"
 ---| "leave"
@@ -112,6 +113,12 @@ local M = {
         width = "40%", ---@type lc.size
 
         show_stats = true, ---@type boolean
+
+        submissions = {
+            enabled = true, ---@type boolean
+            height = 10, ---@type lc.size
+            limit = 10, ---@type integer
+        },
     },
 
     ---@type lc.picker
@@ -120,6 +127,9 @@ local M = {
     hooks = {
         ---@type fun()[]
         ["enter"] = {},
+
+        ---@type fun(question: lc.ui.Question)[]
+        ["problem_description_open"] = {},
 
         ---@type fun(question: lc.ui.Question)[]
         ["question_enter"] = {},

@@ -1,4 +1,5 @@
 local Description = require("leetcode-ui.split.description")
+local Submissions = require("leetcode-ui.split.submissions")
 local Console = require("leetcode-ui.layout.console")
 local Info = require("leetcode-ui.popup.info")
 local Object = require("nui.object")
@@ -15,6 +16,7 @@ local log = require("leetcode.logger")
 ---@field file Path
 ---@field q lc.question_res
 ---@field description lc.ui.Description
+---@field submissions? lc.ui.Submissions
 ---@field bufnr integer
 ---@field console lc.ui.Console
 ---@field lang string
@@ -275,6 +277,9 @@ function Question:_unmount()
     vim.schedule(function()
         self.info:unmount()
         self.console:unmount()
+        if self.submissions then
+            self.submissions:unmount()
+        end
         self.description:unmount()
 
         if self.bufnr and vim.api.nvim_buf_is_valid(self.bufnr) then
@@ -377,6 +382,11 @@ function Question:handle_mount()
     self:create_buffer()
 
     self.description = Description(self):mount()
+    if config.user.description.submissions.enabled then
+        self.submissions = Submissions(self):mount()
+    end
+    utils.exec_hooks("problem_description_open", self)
+
     self.console = Console(self)
     self.info = Info(self)
 
@@ -386,6 +396,14 @@ function Question:handle_mount()
     utils.exec_hooks("question_enter", self)
 
     return self
+end
+
+---@param submissions table[]
+function Question:set_past_submissions(submissions)
+    self.past_submissions = submissions or {}
+    if self.submissions then
+        self.submissions:update_submissions(self.past_submissions)
+    end
 end
 
 function Question:mount()

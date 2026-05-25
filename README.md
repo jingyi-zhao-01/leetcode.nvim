@@ -15,6 +15,7 @@ This fork adds submission tracking and session management capabilities to leetco
 
 - **Session Timer Commands**: `:Leet timer_start` / `:Leet timer_stop`
 - **Extended Hooks**: `timer_start`, `question_leave`, `on_test_result`, and improved upload hooks
+- **Submission Side Panel**: Optional left-bottom panel for past submissions
 - **External Integration**: Wire hooks to external APIs for persistence
 - **Bug Fix**: Resolved `nvim_win_is_valid` fast event crash in timer display
 
@@ -24,6 +25,7 @@ Beyond the original hooks, this fork adds:
 
 | Hook | Signature | When |
 |------|-----------|------|
+| `problem_description_open` | `fun(question: lc.ui.Question)` | After the problem description buffer mounts |
 | `timer_start` | `fun(question: lc.ui.Question)` | Session timer started (`:Leet session start`) |
 | `question_leave` | `fun(question: lc.ui.Question)` | Question window closed or session stopped |
 
@@ -55,12 +57,24 @@ local db_saver = require("submission_db_saver")
 return {
     "kawre/leetcode.nvim",
     opts = {
+        description = {
+            submissions = {
+                enabled = true,
+                height = "28%",
+                limit = 10,
+            },
+        },
         hooks = {
             -- Track time on a problem
             ["timer_start"] = {
                 function(question)
                     db_saver.timer_start(question)
                     question:start_timer_display()
+                end,
+            },
+            ["problem_description_open"] = {
+                function(question)
+                    db_saver.show_past_submissions(question, 10)
                 end,
             },
             -- Clean up timer on close
@@ -93,8 +107,9 @@ Expected server endpoints:
 ```
 POST /api/session
 {
-    "action": "start_timer" | "drop_timer" | "save_submission",
+    "action": "start_timer" | "drop_timer" | "save_submission" | "get_past_submissions",
     "title_slug": "two-sum",
+    "limit": 10,               // optional, for get_past_submissions
     "content": "...",          // for save_submission
     "item": {...}              // for save_submission
 }

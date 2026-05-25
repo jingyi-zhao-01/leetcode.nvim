@@ -1,6 +1,8 @@
 ---@class lc.Hooks
 local hooks = {}
 
+hooks["problem_description_open"] = {}
+
 hooks["question_enter"] = {
     function(q)
         -- https://github.com/kawre/leetcode.nvim/issues/14
