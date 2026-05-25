@@ -264,7 +264,7 @@ function cmd.q_run()
     utils.auth_guard()
     local q = utils.curr_question()
     if q then
-        q.console:run()
+        q.console:run(false, "on_test_result")
     end
 end
 
@@ -273,7 +273,7 @@ function cmd.q_submit()
     utils.auth_guard()
     local q = utils.curr_question()
     if q then
-        q.console:run(true)
+        q.console:run(true, "upload_submit_result")
     end
 end
 
@@ -300,7 +300,7 @@ function cmd.q_upload_test_result()
     utils.auth_guard()
     local q = utils.curr_question()
     if q then
-        q.console:run(false, true) -- test flow but trigger hook
+        q.console:run(false, "upload_test_result")
     end
 end
 
@@ -309,7 +309,7 @@ function cmd.q_upload_submit_result()
     utils.auth_guard()
     local q = utils.curr_question()
     if q then
-        q.console:run(true, true) -- submit flow and trigger hook
+        q.console:run(true, "upload_submit_result")
     end
 end
 

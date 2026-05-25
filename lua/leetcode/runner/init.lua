@@ -19,13 +19,13 @@ Runner.running = false
 
 ---@param self lc.Runner
 ---@param submit boolean
----@param trigger_hook? boolean
-Runner.run = vim.schedule_wrap(function(self, submit, trigger_hook)
+---@param hook_event? lc.hook|boolean
+Runner.run = vim.schedule_wrap(function(self, submit, hook_event)
     if Runner.running then
         return log.warn("Runner is busy")
     end
 
-    local ok, err = pcall(Runner.handle, self, submit, trigger_hook)
+    local ok, err = pcall(Runner.handle, self, submit, hook_event)
     if not ok then
         self:stop()
         log.error(err)
@@ -36,7 +36,7 @@ Runner.stop = function()
     Runner.running = false
 end
 
-function Runner:handle(submit, trigger_hook)
+function Runner:handle(submit, hook_event)
     Runner.running = true
     local question = self.question
 
@@ -55,9 +55,12 @@ function Runner:handle(submit, trigger_hook)
 
         if item then
             -- print(vim.inspect(item))
-            if trigger_hook then
-                local hook_event = submit and "upload_submit_result" or "upload_test_result"
-                utils.exec_hooks(hook_event, question, body.typed_code, item)
+            if hook_event then
+                local event = hook_event
+                if hook_event == true then
+                    event = submit and "upload_submit_result" or "upload_test_result"
+                end
+                utils.exec_hooks(event, question, body.typed_code, item)
             end
 
             if item._.success then

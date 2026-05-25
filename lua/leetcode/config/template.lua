@@ -25,6 +25,7 @@
 ---| "question_enter"
 ---| "question_leave"
 ---| "leave"
+---| "on_test_result"
 ---| "upload_submit_result"
 ---| "upload_test_result"
 ---| "timer_start"
@@ -130,7 +131,19 @@ local M = {
         ["leave"] = {},
 
         ---@type fun(question: lc.ui.Question, buffer: string, item_json: table)[]
-        ["submit"] = {},
+        ["on_test_result"] = {},
+
+        ---@type fun(question: lc.ui.Question, buffer: string, item_json: table)[]
+        ["upload_submit_result"] = {},
+
+        ---@type fun(question: lc.ui.Question, buffer: string, item_json: table)[]
+        ["upload_test_result"] = {},
+
+        ---@type fun(question: lc.ui.Question)[]
+        ["timer_start"] = {},
+
+        ---@type fun(question: lc.ui.Question)[]
+        ["timer_stop"] = {},
     },
 
     keys = {

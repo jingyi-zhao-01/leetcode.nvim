@@ -14,7 +14,7 @@ Track problems, time spent, and submissions via external services.
 This fork adds submission tracking and session management capabilities to leetcode.nvim:
 
 - **Session Timer Commands**: `:Leet timer_start` / `:Leet timer_stop`
-- **Extended Hooks**: `timer_start`, `question_leave`, and improved `upload_submit_result` / `upload_test_result`
+- **Extended Hooks**: `timer_start`, `question_leave`, `on_test_result`, and improved upload hooks
 - **External Integration**: Wire hooks to external APIs for persistence
 - **Bug Fix**: Resolved `nvim_win_is_valid` fast event crash in timer display
 
@@ -31,8 +31,9 @@ Existing hooks also trigger on submissions:
 
 | Hook | Signature | When |
 |------|-----------|------|
+| `on_test_result` | `fun(question, buffer, item_json)` | After `:Leet run` / `:Leet test` |
 | `upload_submit_result` | `fun(question, buffer, item_json)` | After `:Leet submit` |
-| `upload_test_result` | `fun(question, buffer, item_json)` | After `:Leet run` |
+| `upload_test_result` | `fun(question, buffer, item_json)` | After `:Leet upload_test_result` |
 
 ## 🛠️ New Commands
 
@@ -69,7 +70,7 @@ return {
                 end,
             },
             -- Save test runs
-            ["upload_test_result"] = {
+            ["on_test_result"] = {
                 function(question, buffer, item)
                     db_saver.save_submission(question, buffer, item)
                 end,

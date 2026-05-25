@@ -25,6 +25,8 @@ hooks["upload_submit_result"] = {
 
 hooks["upload_test_result"] = {}
 
+hooks["on_test_result"] = {}
+
 hooks["timer_start"] = {
     function(q)
         q:start_timer_display()
