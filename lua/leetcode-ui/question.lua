@@ -266,12 +266,11 @@ function Question:injector(code)
 end
 
 function Question:_unmount()
+    self:run_leave_hooks()
+
     if vim.v.dying ~= 0 then
         return
     end
-
-    utils.exec_hooks("timer_stop", self)
-    utils.exec_hooks("question_leave", self)
 
     vim.schedule(function()
         self.info:unmount()
@@ -297,12 +296,40 @@ function Question:unmount()
 end
 
 local group = vim.api.nvim_create_augroup("leetcode_questions", { clear = true })
+
+function Question:run_leave_hooks()
+    if self._leave_hooks_ran then
+        return
+    end
+
+    self._leave_hooks_ran = true
+    utils.exec_hooks("timer_stop", self)
+    utils.exec_hooks("question_leave", self)
+end
+
 function Question:autocmds()
     vim.api.nvim_create_autocmd("WinClosed", {
         group = group,
         pattern = tostring(self.winid),
         callback = function()
             self:_unmount()
+        end,
+    })
+
+    vim.api.nvim_create_autocmd("TabLeave", {
+        group = group,
+        callback = function()
+            local tabp = utils.question_tabp(self)
+            if tabp and tabp == vim.api.nvim_get_current_tabpage() and self._session_timer then
+                utils.exec_hooks("timer_stop", self)
+            end
+        end,
+    })
+
+    vim.api.nvim_create_autocmd("VimLeavePre", {
+        group = group,
+        callback = function()
+            self:run_leave_hooks()
         end,
     })
 end
