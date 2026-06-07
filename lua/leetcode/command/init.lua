@@ -450,6 +450,10 @@ function cmd.fold()
     q:editor_fold_imports(true)
 end
 
+function cmd.companion()
+    require("leetcode.integrations.codecompanion").prompt_and_open()
+end
+
 function cmd.get_active_session()
     local sessions = config.sessions.all
     return vim.tbl_filter(function(s)
@@ -659,6 +663,7 @@ cmd.commands = {
     restore = { cmd.restore },
     inject = { cmd.inject },
     fold = { cmd.fold },
+    companion = { cmd.companion },
     -- session = {
     --     change = {
     --         cmd.change_session,

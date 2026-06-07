@@ -124,6 +124,15 @@ local M = {
     ---@type lc.picker
     picker = { provider = nil },
 
+    companion = {
+        adapter = "submission_service", ---@type string
+        model = nil, ---@type string|nil
+        auto_submit = true, ---@type boolean
+        prompt_user = true, ---@type boolean
+        default_prompt = "Help me understand this problem and my current code.", ---@type string
+        window = nil, ---@type table|nil
+    },
+
     hooks = {
         ---@type fun()[]
         ["enter"] = {},

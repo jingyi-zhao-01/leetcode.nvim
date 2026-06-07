@@ -17,6 +17,7 @@ This fork adds submission tracking and session management capabilities to leetco
 - **Extended Hooks**: `timer_start`, `question_leave`, `on_test_result`, and improved upload hooks
 - **Submission Side Panel**: Optional left-bottom panel for past submissions
 - **External Integration**: Wire hooks to external APIs for persistence
+- **CodeCompanion Bridge**: `:Leet companion` can inject LeetCode context into CodeCompanion while delegating the actual LLM call to your own service
 - **Bug Fix**: Resolved `nvim_win_is_valid` fast event crash in timer display
 
 ## 🎯 New Hooks
@@ -44,7 +45,31 @@ Existing hooks also trigger on submissions:
 :Leet timer_stop           " Stop tracking (drop session without saving)
 :Leet session start        " Alias for timer_start
 :Leet session stop         " Alias for timer_stop
+:Leet companion            " Open a CodeCompanion chat seeded with the current LeetCode context
 ```
+
+## 🤖 CodeCompanion Bridge
+
+If you want `CodeCompanion` to be just the UI bridge while your own submission service owns the provider, model, and system prompt, configure a local OpenAI-compatible adapter in `CodeCompanion` and point `leetcode.nvim` at it:
+
+```lua
+require("leetcode").setup({
+    companion = {
+        adapter = "submission_service",
+        default_prompt = "Help me understand the bug in my current approach.",
+    },
+})
+```
+
+Then run `:Leet companion` on an open problem buffer. The plugin injects:
+
+- problem title / slug / difficulty
+- problem description
+- tags and hints
+- active testcase
+- current code from the editor
+
+as hidden chat context, while the visible prompt stays focused on what you want help with.
 
 ## 📡 External Integration Example
 
