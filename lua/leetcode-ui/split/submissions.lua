@@ -5,6 +5,7 @@ local Line = require("leetcode-ui.line")
 local Padding = require("leetcode-ui.lines.padding")
 local Split = require("leetcode-ui.split")
 local ui_utils = require("leetcode-ui.utils")
+local active_panels_by_slug = {}
 
 ---@class lc.ui.Submissions : lc-ui.Split
 ---@field question lc.ui.Question
@@ -299,6 +300,32 @@ function Submissions:update_memory(summary)
     self:draw()
 end
 
+function Submissions:refresh_memory()
+    local ok, saver = pcall(require, "submission_db_saver")
+    if not ok then
+        self:set_memory_error("submission_db_saver.lua not found")
+        return
+    end
+
+    self:set_memory_loading()
+    saver.get_mem0_recall_summary(self.question, function(response)
+        vim.schedule(function()
+            if not self._.mounted then
+                debug_log("refresh_memory callback ignored because panel unmounted")
+                return
+            end
+
+            debug_log("refresh_memory response=" .. vim.inspect(response))
+            if response.error then
+                self:set_memory_error(response.error)
+                return
+            end
+
+            self:update_memory(response)
+        end)
+    end)
+end
+
 ---@param tab "submissions"|"memory"
 function Submissions:switch_tab(tab)
     if self.active_tab == tab then
@@ -360,6 +387,7 @@ end
 
 function Submissions:mount()
     Submissions.super.mount(self)
+    active_panels_by_slug[self.question.q.title_slug] = self
     self:fetch()
     self:map("n", { "1", "<leader>1" }, function()
         self:switch_tab("submissions")
@@ -396,6 +424,13 @@ function Submissions:mount()
     return self
 end
 
+function Submissions:unmount()
+    if active_panels_by_slug[self.question.q.title_slug] == self then
+        active_panels_by_slug[self.question.q.title_slug] = nil
+    end
+    return Submissions.super.unmount(self)
+end
+
 ---@param parent lc.ui.Question
 function Submissions:init(parent)
     Submissions.super.init(self, {
@@ -419,5 +454,15 @@ end
 
 ---@type fun(parent: lc.ui.Question): lc.ui.Submissions
 local LeetSubmissions = Submissions
+
+function LeetSubmissions.refresh_memory_for_slug(title_slug)
+    local panel = active_panels_by_slug[title_slug]
+    if not panel or not panel._.mounted then
+        return false
+    end
+
+    panel:refresh_memory()
+    return true
+end
 
 return LeetSubmissions
