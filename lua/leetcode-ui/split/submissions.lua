@@ -126,6 +126,41 @@ local function insert_wrapped_value(layout, label, content, max_width, value_hl)
     end
 end
 
+local function compact_string_list(values, limit)
+    if type(values) ~= "table" then
+        return {}
+    end
+
+    local result = {}
+    local seen = {}
+
+    for _, value in ipairs(values) do
+        if value and value ~= vim.NIL and value ~= "" then
+            local text = tostring(value)
+            if not seen[text] then
+                table.insert(result, text)
+                seen[text] = true
+            end
+        end
+
+        if limit and #result >= limit then
+            break
+        end
+    end
+
+    return result
+end
+
+local function session_failure_summaries(session)
+    local summaries = compact_string_list(session.failureSummaries, 5)
+
+    if #summaries == 0 and session.failureSummary and session.failureSummary ~= vim.NIL and session.failureSummary ~= "" then
+        table.insert(summaries, tostring(session.failureSummary))
+    end
+
+    return summaries
+end
+
 local function memory_status_hl(status)
     if status == "Accepted" then
         return "leetcode_easy"
@@ -228,8 +263,13 @@ function Submissions:populate()
             end
             layout:insert(header)
 
-            if session.failureSummary and session.failureSummary ~= vim.NIL and session.failureSummary ~= "" then
-                insert_wrapped_value(layout, "failure: ", session.failureSummary, max_width)
+            if session.distinctMistakeCount and session.distinctMistakeCount ~= vim.NIL then
+                insert_wrapped_value(layout, "mistakes: ", tostring(session.distinctMistakeCount), max_width)
+            end
+
+            local failure_summaries = session_failure_summaries(session)
+            if #failure_summaries > 0 then
+                insert_wrapped_value(layout, "failure: ", table.concat(failure_summaries, " | "), max_width)
             end
 
             if type(session.stuckPoints) == "table" and #session.stuckPoints > 0 then
