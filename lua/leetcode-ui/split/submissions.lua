@@ -280,6 +280,50 @@ function Submissions:populate()
                 insert_wrapped_value(layout, "thought: ", table.concat(session.thoughtProcess, " | "), max_width)
             end
         end
+
+        local similar_matches = summary.similar_matches or {}
+        if #similar_matches > 0 then
+            layout:insert(Padding(1))
+
+            local similar_title = Line()
+            similar_title:append("类似题：", "leetcode_list")
+            similar_title:append(tostring(summary.similar_match_count or #similar_matches), "leetcode_normal")
+            layout:insert(similar_title)
+
+            for index, match in ipairs(similar_matches) do
+                layout:insert(Padding(1))
+
+                local header = Line()
+                header:append(("%d. "):format(index), "leetcode_list")
+                header:append(match.titleSlug or "unknown", "leetcode_medium")
+                if match.difficulty and match.difficulty ~= vim.NIL then
+                    header:append("  ", "leetcode_alt")
+                    header:append(match.difficulty, "leetcode_alt")
+                end
+                if match.score and match.score ~= vim.NIL then
+                    header:append("  score=", "leetcode_list")
+                    header:append(tostring(match.score), "leetcode_normal")
+                end
+                layout:insert(header)
+
+                if match.profile and match.profile.problemSummary and match.profile.problemSummary ~= "" then
+                    insert_wrapped_value(layout, "why: ", match.profile.problemSummary, max_width)
+                end
+
+                local failure_summaries = compact_string_list(match.failureSummaries, 5)
+                if #failure_summaries > 0 then
+                    insert_wrapped_value(layout, "failure: ", table.concat(failure_summaries, " | "), max_width)
+                end
+
+                if type(match.stuckPoints) == "table" and #match.stuckPoints > 0 then
+                    insert_wrapped_value(layout, "stuck: ", table.concat(match.stuckPoints, " | "), max_width)
+                end
+
+                if type(match.thoughtProcess) == "table" and #match.thoughtProcess > 0 then
+                    insert_wrapped_value(layout, "thought: ", table.concat(match.thoughtProcess, " | "), max_width)
+                end
+            end
+        end
     end
 
     self.renderer:replace({ layout })
@@ -335,7 +379,12 @@ end
 function Submissions:update_memory(summary)
     self.memory_summary = summary or {}
     self.memory_message = nil
-    self.memory_state = summary and summary.has_history and "ready" or "empty"
+    local has_memory = summary and (
+        summary.has_history
+        or ((summary.similar_match_count or 0) > 0)
+        or (type(summary.similar_matches) == "table" and #summary.similar_matches > 0)
+    )
+    self.memory_state = has_memory and "ready" or "empty"
     self.question.mem0_recall_summary = self.memory_summary
     self:draw()
 end
