@@ -2,6 +2,7 @@ local config = require("leetcode.config")
 local lc_utils = require("leetcode.utils")
 
 local M = {}
+local active_chats_by_slug = {}
 
 local function notify(message, level)
     vim.notify(message, level or vim.log.levels.INFO, { title = "leetcode.nvim" })
@@ -14,6 +15,54 @@ local function current_question()
             return entry.question
         end
     end
+end
+
+local function question_slug(question)
+    return question and question.q and question.q.title_slug or ""
+end
+
+local function is_chat_valid(chat)
+    return chat
+        and type(chat) == "table"
+        and chat.bufnr
+        and vim.api.nvim_buf_is_valid(chat.bufnr)
+        and vim.api.nvim_buf_is_loaded(chat.bufnr)
+end
+
+local function bind_chat(title_slug, chat)
+    if title_slug == "" or not is_chat_valid(chat) then
+        return
+    end
+    active_chats_by_slug[title_slug] = chat
+end
+
+local function unbind_chat(title_slug, chat)
+    if title_slug == "" then
+        return
+    end
+
+    if active_chats_by_slug[title_slug] == chat then
+        active_chats_by_slug[title_slug] = nil
+    end
+end
+
+local function current_chat_for_slug(title_slug)
+    local chat = active_chats_by_slug[title_slug]
+    if not is_chat_valid(chat) then
+        active_chats_by_slug[title_slug] = nil
+        return nil
+    end
+    return chat
+end
+
+local function chat_has_context_id(chat, context_id)
+    local items = chat and chat.context_items or {}
+    for _, item in ipairs(items) do
+        if item.id == context_id then
+            return true
+        end
+    end
+    return false
 end
 
 local function require_question()
@@ -120,6 +169,77 @@ function M.render_context(context)
     return table.concat(parts, "\n")
 end
 
+function M.render_failure_event_context(event)
+    local parts = {
+        "# LeetCode Failure Event",
+        "",
+        ("- Title Slug: %s"):format(event.title_slug),
+        ("- Event ID: %s"):format(event.event_id),
+        "- Source: submission-service",
+        "- This failure event is already stored in the active submission-service session memory.",
+    }
+
+    if event.summary ~= "" then
+        table.insert(parts, "")
+        table.insert(parts, "## Latest Failure Summary")
+        table.insert(parts, event.summary)
+    end
+
+    if type(event.annotation_count) == "number" and event.annotation_count > 0 then
+        table.insert(parts, "")
+        table.insert(parts, ("- Annotation Count: %d"):format(event.annotation_count))
+    end
+
+    return table.concat(parts, "\n")
+end
+
+function M.render_failure_event(question, event)
+    local title_slug = question_slug(question)
+    local event_id = type(event) == "table" and event.event_id or ""
+    if title_slug == "" or type(event_id) ~= "string" or event_id == "" then
+        return false
+    end
+
+    local chat = current_chat_for_slug(title_slug)
+    if not chat then
+        return false
+    end
+
+    local context_id = ("<leetcode_failure:%s>"):format(event_id)
+    if chat_has_context_id(chat, context_id) then
+        return true
+    end
+
+    chat:add_context(
+        {
+            role = "user",
+            content = M.render_failure_event_context({
+                title_slug = title_slug,
+                event_id = event_id,
+                summary = type(event.summary) == "string" and event.summary or "",
+                annotation_count = tonumber(event.count) or 0,
+            }),
+        },
+        "leetcode",
+        context_id,
+        {
+            visible = false,
+            tag = "leetcode_failure_event",
+        }
+    )
+
+    if chat.refresh_context then
+        chat:refresh_context()
+    end
+
+    chat:add_buf_message({
+        role = "user",
+        content = ("Attached failure event `%s` to this session."):format(event_id),
+    })
+
+    return true
+end
+
 function M.open(opts)
     opts = opts or {}
 
@@ -145,6 +265,7 @@ function M.open(opts)
     end
 
     local context = M.build_context(question)
+    local title_slug = question_slug(question)
     return codecompanion.chat({
         auto_submit = cc.auto_submit ~= false,
         ignore_system_prompt = true,
@@ -154,6 +275,7 @@ function M.open(opts)
         window_opts = cc.window,
         callbacks = {
             on_created = function(chat)
+                bind_chat(title_slug, chat)
                 chat:add_context(
                     {
                         role = "user",
@@ -166,6 +288,9 @@ function M.open(opts)
                         tag = "leetcode_context",
                     }
                 )
+            end,
+            on_closed = function(chat)
+                unbind_chat(title_slug, chat)
             end,
         },
     })
@@ -209,6 +334,10 @@ function M.command(opts)
     end
 
     return M.open({ prompt = table.concat(fargs, " ") })
+end
+
+function M.clear(question)
+    unbind_chat(question_slug(question), current_chat_for_slug(question_slug(question)))
 end
 
 return M
