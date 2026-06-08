@@ -7,6 +7,24 @@ local function notify(message, level)
     vim.notify(message, level or vim.log.levels.INFO, { title = "leetcode.nvim" })
 end
 
+local function current_question()
+    local current_tab = vim.api.nvim_get_current_tabpage()
+    for _, entry in ipairs(lc_utils.question_tabs()) do
+        if entry.tabpage == current_tab then
+            return entry.question
+        end
+    end
+end
+
+local function require_question()
+    local question = current_question()
+    if not question then
+        notify("CodeCompanionChat requires an active leetcode question", vim.log.levels.WARN)
+        return nil
+    end
+    return question
+end
+
 local function current_code(question)
     if not (question and question.bufnr and vim.api.nvim_buf_is_valid(question.bufnr)) then
         return question and question:snippet(true) or ""
@@ -105,7 +123,7 @@ end
 function M.open(opts)
     opts = opts or {}
 
-    local question = lc_utils.curr_question()
+    local question = require_question()
     if not question then
         return
     end
@@ -153,6 +171,10 @@ function M.open(opts)
     })
 end
 
+function M.toggle_or_open()
+    return M.prompt_and_open()
+end
+
 function M.prompt_and_open()
     local cc = config.user.companion or {}
     local default_prompt = cc.default_prompt or ""
@@ -176,6 +198,17 @@ function M.prompt_and_open()
 
         M.open({ prompt = prompt })
     end)
+end
+
+function M.command(opts)
+    opts = opts or {}
+    local fargs = opts.fargs or {}
+
+    if #fargs == 0 then
+        return M.prompt_and_open()
+    end
+
+    return M.open({ prompt = table.concat(fargs, " ") })
 end
 
 return M
