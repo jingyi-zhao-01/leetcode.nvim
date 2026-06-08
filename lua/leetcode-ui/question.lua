@@ -17,6 +17,7 @@ local log = require("leetcode.logger")
 ---@field q lc.question_res
 ---@field description lc.ui.Description
 ---@field submissions? lc.ui.Submissions
+---@field mem0_recall_summary? table
 ---@field bufnr integer
 ---@field console lc.ui.Console
 ---@field lang string

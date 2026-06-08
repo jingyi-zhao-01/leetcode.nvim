@@ -4,12 +4,17 @@ local Group = require("leetcode-ui.group")
 local Line = require("leetcode-ui.line")
 local Padding = require("leetcode-ui.lines.padding")
 local Split = require("leetcode-ui.split")
+local ui_utils = require("leetcode-ui.utils")
 
 ---@class lc.ui.Submissions : lc-ui.Split
 ---@field question lc.ui.Question
----@field state "loading"|"ready"|"empty"|"error"
+---@field active_tab "submissions"|"memory"
+---@field submissions_state "loading"|"ready"|"empty"|"error"
+---@field memory_state "loading"|"ready"|"empty"|"error"
 ---@field submissions table[]
 ---@field message? string
+---@field memory_summary? table
+---@field memory_message? string
 local Submissions = Split:extend("LeetSubmissions")
 
 local function debug_log(msg)
@@ -46,7 +51,94 @@ local function trim_timestamp(timestamp)
     return timestamp:gsub(" %u+$", "")
 end
 
+local function panel_content_width(self)
+    local win_width = ui_utils.win_width(self)
+    local usable_width = math.max(20, win_width - 6)
+    return math.min(usable_width, 88)
+end
+
+local function wrap_text(text, max_width)
+    local chunks = {}
+    local current = ""
+    local current_width = 0
+    local source = tostring(text or ""):gsub("\r\n", "\n")
+
+    for raw_line in source:gmatch("([^\n]*)\n?") do
+        if raw_line == "" then
+            if current ~= "" then
+                table.insert(chunks, current)
+                current = ""
+                current_width = 0
+            end
+            if #chunks == 0 or chunks[#chunks] ~= "" then
+                table.insert(chunks, "")
+            end
+        else
+            local index = 0
+            while true do
+                local char = vim.fn.strcharpart(raw_line, index, 1)
+                if char == nil or char == "" then
+                    break
+                end
+
+                local char_width = vim.api.nvim_strwidth(char)
+                if current_width > 0 and current_width + char_width > max_width then
+                    table.insert(chunks, current)
+                    current = char
+                    current_width = char_width
+                else
+                    current = current .. char
+                    current_width = current_width + char_width
+                end
+
+                index = index + 1
+            end
+
+            if current ~= "" then
+                table.insert(chunks, current)
+                current = ""
+                current_width = 0
+            end
+        end
+    end
+
+    while #chunks > 0 and chunks[#chunks] == "" do
+        table.remove(chunks)
+    end
+
+    return vim.tbl_isempty(chunks) and { "" } or chunks
+end
+
+local function insert_wrapped_value(layout, label, content, max_width, value_hl)
+    local label_width = vim.api.nvim_strwidth(label)
+    local wrapped = wrap_text(content, math.max(10, max_width - label_width))
+
+    for index, segment in ipairs(wrapped) do
+        local line = Line()
+        if index == 1 then
+            line:append(label, "leetcode_list")
+        else
+            line:append((" "):rep(label_width), "leetcode_list")
+        end
+        line:append(segment, value_hl or "leetcode_normal")
+        layout:insert(line)
+    end
+end
+
+local function memory_status_hl(status)
+    if status == "Accepted" then
+        return "leetcode_easy"
+    end
+
+    if status == "Wrong Answer" or status == "Runtime Error" or status == "Time Limit Exceeded" then
+        return "leetcode_hard"
+    end
+
+    return "leetcode_alt"
+end
+
 function Submissions:populate()
+    local max_width = panel_content_width(self)
     local layout = Group({}, {
         padding = {
             left = 1,
@@ -55,24 +147,26 @@ function Submissions:populate()
         },
     })
 
-    local header = Line()
-    header:append("Past Submissions", "leetcode_medium")
-    layout:insert(header)
+    local tabs = Line()
+    tabs:append("[1] 历史提交", self.active_tab == "submissions" and "leetcode_medium" or "leetcode_alt")
+    tabs:append("  |  ", "leetcode_alt")
+    tabs:append("[2] 历史记忆", self.active_tab == "memory" and "leetcode_medium" or "leetcode_alt")
+    layout:insert(tabs)
     layout:insert(Padding(1))
 
-    if self.state == "loading" then
+    if self.active_tab == "submissions" and self.submissions_state == "loading" then
         local line = Line()
-        line:append("Loading submissions...", "leetcode_alt")
+        line:append("正在加载历史提交...", "leetcode_alt")
         layout:insert(line)
-    elseif self.state == "error" then
+    elseif self.active_tab == "submissions" and self.submissions_state == "error" then
         local line = Line()
-        line:append(self.message or "Submission service unavailable", "leetcode_hard")
+        line:append(self.message or "提交服务暂不可用", "leetcode_hard")
         layout:insert(line)
-    elseif self.state == "empty" then
+    elseif self.active_tab == "submissions" and self.submissions_state == "empty" then
         local line = Line()
-        line:append("No past submissions yet", "leetcode_alt")
+        line:append("还没有历史提交", "leetcode_alt")
         layout:insert(line)
-    else
+    elseif self.active_tab == "submissions" then
         for index, submission in ipairs(self.submissions) do
             local title = Line()
             title:append(("%d. "):format(index), "leetcode_list")
@@ -82,23 +176,67 @@ function Submissions:populate()
             local details = Line()
             local icon, icon_hl = status_icon(submission.submit_result)
             details:append(icon, icon_hl)
-            details:append("  time=", "leetcode_list")
+            details:append("  用时=", "leetcode_list")
 
             local time_spent = submission.time_spent_minutes
             if time_spent == nil or time_spent == vim.NIL then
-                details:append("n/a", "leetcode_alt")
+                details:append("未知", "leetcode_alt")
             else
                 details:append(("%sm"):format(time_spent), "leetcode_normal")
             end
 
-            details:append("  test=", "leetcode_list")
-            details:append(submission.is_test and "yes" or "no", submission.is_test and "leetcode_medium" or "leetcode_normal")
+            details:append("  测试=", "leetcode_list")
+            details:append(submission.is_test and "是" or "否", submission.is_test and "leetcode_medium" or "leetcode_normal")
             details:append("  ", "leetcode_list")
             details:append(submission.submit_result or "Unknown", status_hl(submission.submit_result))
             layout:insert(details)
 
             if index < #self.submissions then
                 layout:insert(Padding(1))
+            end
+        end
+    elseif self.memory_state == "loading" then
+        local line = Line()
+        line:append("正在加载历史记忆...", "leetcode_alt")
+        layout:insert(line)
+    elseif self.memory_state == "error" then
+        local line = Line()
+        line:append(self.memory_message or "历史记忆暂不可用", "leetcode_hard")
+        layout:insert(line)
+    elseif self.memory_state == "empty" then
+        local line = Line()
+        line:append("这道题还没有可回忆的历史记录", "leetcode_alt")
+        layout:insert(line)
+    else
+        local summary = self.memory_summary or {}
+        local count_line = Line()
+        count_line:append("历史记录数：", "leetcode_list")
+        count_line:append(tostring(summary.record_count or 0), "leetcode_normal")
+        layout:insert(count_line)
+
+        local sessions = summary.sessions or {}
+        for index, session in ipairs(sessions) do
+            layout:insert(Padding(1))
+
+            local header = Line()
+            header:append(("%d. "):format(index), "leetcode_list")
+            header:append(session.endReason or "unknown", "leetcode_medium")
+            if session.latestFailureStatus and session.latestFailureStatus ~= vim.NIL then
+                header:append("  ", "leetcode_alt")
+                header:append(session.latestFailureStatus, memory_status_hl(session.latestFailureStatus))
+            end
+            layout:insert(header)
+
+            if session.failureSummary and session.failureSummary ~= vim.NIL and session.failureSummary ~= "" then
+                insert_wrapped_value(layout, "failure: ", session.failureSummary, max_width)
+            end
+
+            if type(session.stuckPoints) == "table" and #session.stuckPoints > 0 then
+                insert_wrapped_value(layout, "stuck: ", table.concat(session.stuckPoints, " | "), max_width)
+            end
+
+            if type(session.thoughtProcess) == "table" and #session.thoughtProcess > 0 then
+                insert_wrapped_value(layout, "thought: ", table.concat(session.thoughtProcess, " | "), max_width)
             end
         end
     end
@@ -113,7 +251,7 @@ end
 
 function Submissions:set_loading()
     debug_log("set_loading")
-    self.state = "loading"
+    self.submissions_state = "loading"
     self.message = nil
     self.submissions = {}
     self:draw()
@@ -122,7 +260,7 @@ end
 ---@param msg string
 function Submissions:set_error(msg)
     debug_log("set_error " .. tostring(msg))
-    self.state = "error"
+    self.submissions_state = "error"
     self.message = msg
     self.submissions = {}
     self:draw()
@@ -133,17 +271,53 @@ function Submissions:update_submissions(submissions)
     debug_log("update_submissions count=" .. tostring(submissions and #submissions or 0))
     self.submissions = submissions or {}
     self.message = nil
-    self.state = vim.tbl_isempty(self.submissions) and "empty" or "ready"
+    self.submissions_state = vim.tbl_isempty(self.submissions) and "empty" or "ready"
+    self:draw()
+end
+
+function Submissions:set_memory_loading()
+    self.memory_state = "loading"
+    self.memory_message = nil
+    self.memory_summary = nil
+    self:draw()
+end
+
+---@param msg string
+function Submissions:set_memory_error(msg)
+    self.memory_state = "error"
+    self.memory_message = msg
+    self.memory_summary = nil
+    self:draw()
+end
+
+---@param summary table
+function Submissions:update_memory(summary)
+    self.memory_summary = summary or {}
+    self.memory_message = nil
+    self.memory_state = summary and summary.has_history and "ready" or "empty"
+    self.question.mem0_recall_summary = self.memory_summary
+    self:draw()
+end
+
+---@param tab "submissions"|"memory"
+function Submissions:switch_tab(tab)
+    if self.active_tab == tab then
+        return
+    end
+
+    self.active_tab = tab
     self:draw()
 end
 
 function Submissions:fetch()
     debug_log("fetch begin for " .. self.question.q.title_slug)
     self:set_loading()
+    self:set_memory_loading()
 
     local ok, saver = pcall(require, "submission_db_saver")
     if not ok then
         self:set_error("submission_db_saver.lua not found")
+        self:set_memory_error("submission_db_saver.lua not found")
         return
     end
 
@@ -165,11 +339,34 @@ function Submissions:fetch()
             self:update_submissions(submissions)
         end)
     end, config.user.description.submissions.limit)
+
+    saver.get_mem0_recall_summary(self.question, function(response)
+        vim.schedule(function()
+            if not self._.mounted then
+                debug_log("mem0 callback ignored because panel unmounted")
+                return
+            end
+
+            debug_log("mem0 callback response=" .. vim.inspect(response))
+            if response.error then
+                self:set_memory_error(response.error)
+                return
+            end
+
+            self:update_memory(response)
+        end)
+    end)
 end
 
 function Submissions:mount()
     Submissions.super.mount(self)
     self:fetch()
+    self:map("n", { "1", "<leader>1" }, function()
+        self:switch_tab("submissions")
+    end)
+    self:map("n", { "2", "<leader>2" }, function()
+        self:switch_tab("memory")
+    end)
 
     local ui_utils = require("leetcode-ui.utils")
     ui_utils.buf_set_opts(self.bufnr, {
@@ -213,8 +410,11 @@ function Submissions:init(parent)
     })
 
     self.question = parent
-    self.state = "loading"
+    self.active_tab = "submissions"
+    self.submissions_state = "loading"
+    self.memory_state = "loading"
     self.submissions = parent.past_submissions or {}
+    self.memory_summary = parent.mem0_recall_summary
 end
 
 ---@type fun(parent: lc.ui.Question): lc.ui.Submissions
