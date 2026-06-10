@@ -57,6 +57,7 @@ require("leetcode").setup({
     companion = {
         adapter = "submission_service",
         default_prompt = "Help me understand the bug in my current approach.",
+        auto_fence_code = true,
     },
 })
 ```
@@ -70,6 +71,8 @@ Then run `:Leet companion` on an open problem buffer. The plugin injects:
 - current code from the editor
 
 as hidden chat context, while the visible prompt stays focused on what you want help with.
+
+When `auto_fence_code` is enabled, `leetcode.nvim` will also wrap obviously code-like assistant replies in a fenced code block before re-rendering the CodeCompanion buffer. This gives Treesitter a better chance to apply syntax highlighting even when the submission service forgets to fence the snippet itself.
 
 ## 📡 External Integration Example
 

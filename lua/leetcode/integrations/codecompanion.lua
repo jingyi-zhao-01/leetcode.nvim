@@ -3,6 +3,7 @@ local lc_utils = require("leetcode.utils")
 
 local M = {}
 local active_chats_by_slug = {}
+local FENCE = "````"
 
 local function notify(message, level)
     vim.notify(message, level or vim.log.levels.INFO, { title = "leetcode.nvim" })
@@ -34,6 +35,161 @@ local function bind_chat(title_slug, chat)
         return
     end
     active_chats_by_slug[title_slug] = chat
+end
+
+local function has_code_fence(content)
+    return type(content) == "string" and (content:find("```", 1, true) ~= nil)
+end
+
+local function is_blank(line)
+    return vim.trim(line) == ""
+end
+
+local function is_code_like_line(line)
+    local trimmed = vim.trim(line)
+    if trimmed == "" then
+        return false
+    end
+
+    if line:match("^%s%s%s%s+") or line:match("^\t+") then
+        return true
+    end
+
+    if trimmed:match("^#") or trimmed:match('^"""') or trimmed:match("^'''") then
+        return true
+    end
+
+    if trimmed:match("^class%s+[%w_]+") or trimmed:match("^def%s+[%w_]+") then
+        return true
+    end
+
+    if trimmed:match("^[%w_%.]+%s*=%s*.+") then
+        return true
+    end
+
+    if trimmed:match("^[%w_%.]+%b()%s*:?$") then
+        return true
+    end
+
+    if
+        trimmed:match("^(from|import|return|yield|break|continue|pass)%f[%W]")
+        or trimmed:match("^(if|elif|else|for|while|with|try|except|finally)%f[%W]")
+    then
+        return true
+    end
+
+    if trimmed:match("->") or trimmed:match("[%[%]{}]") then
+        return true
+    end
+
+    return false
+end
+
+local function find_trailing_code_block(lines)
+    local block_end
+    for index = #lines, 1, -1 do
+        if not is_blank(lines[index]) then
+            block_end = index
+            break
+        end
+    end
+
+    if not block_end then
+        return nil
+    end
+
+    local code_lines = 0
+    local nonempty_lines = 0
+    local block_start = block_end
+
+    for index = block_end, 1, -1 do
+        local line = lines[index]
+        if is_blank(line) then
+            block_start = index
+        elseif is_code_like_line(line) then
+            block_start = index
+            code_lines = code_lines + 1
+            nonempty_lines = nonempty_lines + 1
+        else
+            break
+        end
+    end
+
+    if nonempty_lines < 4 or code_lines < 4 then
+        return nil
+    end
+
+    if code_lines / nonempty_lines < 0.7 then
+        return nil
+    end
+
+    return block_start, block_end
+end
+
+local function auto_fence_code_blocks(content, lang)
+    if type(content) ~= "string" or content == "" or has_code_fence(content) then
+        return content, false
+    end
+
+    local lines = vim.split(content, "\n", { plain = true, trimempty = false })
+    local block_start, block_end = find_trailing_code_block(lines)
+    if not block_start or not block_end then
+        return content, false
+    end
+
+    local updated = {}
+    for index = 1, block_start - 1 do
+        table.insert(updated, lines[index])
+    end
+    table.insert(updated, ("%s%s"):format(FENCE, lang or "text"))
+    for index = block_start, block_end do
+        table.insert(updated, lines[index])
+    end
+    table.insert(updated, FENCE)
+    for index = block_end + 1, #lines do
+        table.insert(updated, lines[index])
+    end
+
+    return table.concat(updated, "\n"), true
+end
+
+local function rerender_chat(chat)
+    if not (chat and chat.ui) then
+        return
+    end
+
+    chat.ui:render(chat.buffer_context, vim.deepcopy(chat.messages), {
+        stop_context_insertion = true,
+    })
+    if chat.context then
+        chat.context:render()
+    end
+end
+
+local function normalize_latest_llm_message(chat, lang)
+    if not is_chat_valid(chat) then
+        return
+    end
+
+    for index = #chat.messages, 1, -1 do
+        local message = chat.messages[index]
+        if message.role == config.constants.LLM_ROLE and type(message.content) == "string" and message.content ~= "" then
+            message._meta = message._meta or {}
+            if message._meta.leetcode_auto_fenced then
+                return
+            end
+
+            local normalized, changed = auto_fence_code_blocks(message.content, lang)
+            if not changed then
+                return
+            end
+
+            message.content = normalized
+            message._meta.leetcode_auto_fenced = true
+            rerender_chat(chat)
+            return
+        end
+    end
 end
 
 local function unbind_chat(title_slug, chat)
@@ -256,6 +412,8 @@ function M.open(opts)
 
     local cc = config.user.companion or {}
     local prompt = opts.prompt or cc.default_prompt or ""
+    local auto_submit = cc.auto_submit ~= false
+    local auto_fence = cc.auto_fence_code ~= false
     local params = {
         adapter = cc.adapter,
     }
@@ -267,7 +425,7 @@ function M.open(opts)
     local context = M.build_context(question)
     local title_slug = question_slug(question)
     return codecompanion.chat({
-        auto_submit = cc.auto_submit ~= false,
+        auto_submit = auto_submit,
         ignore_system_prompt = true,
         params = params,
         title = ("LeetCode: %s"):format(context.title ~= "" and context.title or context.title_slug),
@@ -288,6 +446,11 @@ function M.open(opts)
                         tag = "leetcode_context",
                     }
                 )
+            end,
+            on_completed = function(chat)
+                if auto_fence and auto_submit then
+                    normalize_latest_llm_message(chat, context.lang)
+                end
             end,
             on_closed = function(chat)
                 unbind_chat(title_slug, chat)
