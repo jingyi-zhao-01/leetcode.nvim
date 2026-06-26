@@ -134,6 +134,10 @@ local M = {
         window = nil, ---@type table|nil
     },
 
+    ai_assist = {
+        enabled = true, ---@type boolean
+    },
+
     hooks = {
         ---@type fun()[]
         ["enter"] = {},

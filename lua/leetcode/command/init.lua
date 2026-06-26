@@ -295,6 +295,36 @@ function cmd.timer_stop()
     utils.exec_hooks("timer_stop", q)
 end
 
+local function set_ai_assist(enabled)
+    local utils = require("leetcode.utils")
+    local q = utils.curr_question()
+    if not q then
+        return
+    end
+
+    q:set_auto_ai_assist_enabled(enabled)
+    log.info(("Auto AI assist %s"):format(enabled and "on" or "off"))
+end
+
+function cmd.ai_assist()
+    local utils = require("leetcode.utils")
+    local q = utils.curr_question()
+    if not q then
+        return
+    end
+
+    local enabled = q:toggle_auto_ai_assist()
+    log.info(("Auto AI assist %s"):format(enabled and "on" or "off"))
+end
+
+function cmd.ai_assist_on()
+    set_ai_assist(true)
+end
+
+function cmd.ai_assist_off()
+    set_ai_assist(false)
+end
+
 function cmd.q_upload_test_result()
     local utils = require("leetcode.utils")
     utils.auth_guard()
@@ -664,6 +694,12 @@ cmd.commands = {
     inject = { cmd.inject },
     fold = { cmd.fold },
     companion = { cmd.companion },
+    ai_assist = {
+        cmd.ai_assist,
+        on = { cmd.ai_assist_on },
+        off = { cmd.ai_assist_off },
+        toggle = { cmd.ai_assist },
+    },
     -- session = {
     --     change = {
     --         cmd.change_session,

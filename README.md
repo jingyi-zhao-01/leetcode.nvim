@@ -14,6 +14,7 @@ Track problems, time spent, and submissions via external services.
 This fork adds submission tracking and session management capabilities to leetcode.nvim:
 
 - **Session Timer Commands**: `:Leet timer_start` / `:Leet timer_stop`
+- **AI Assist Toggle**: `:Leet ai_assist [on|off|toggle]`
 - **Extended Hooks**: `timer_start`, `question_leave`, `on_test_result`, and improved upload hooks
 - **Submission Side Panel**: Optional left-bottom panel for past submissions
 - **External Integration**: Wire hooks to external APIs for persistence
@@ -45,6 +46,9 @@ Existing hooks also trigger on submissions:
 :Leet timer_stop           " Stop tracking (drop session without saving)
 :Leet session start        " Alias for timer_start
 :Leet session stop         " Alias for timer_stop
+:Leet ai_assist            " Toggle auto AI failure analysis for the current question
+:Leet ai_assist on         " Force auto AI failure analysis on
+:Leet ai_assist off        " Force auto AI failure analysis off
 :Leet companion            " Open a CodeCompanion chat seeded with the current LeetCode context
 ```
 
@@ -58,6 +62,9 @@ require("leetcode").setup({
         adapter = "submission_service",
         default_prompt = "Help me understand the bug in my current approach.",
         auto_fence_code = true,
+    },
+    ai_assist = {
+        enabled = true,
     },
 })
 ```
@@ -73,6 +80,8 @@ Then run `:Leet companion` on an open problem buffer. The plugin injects:
 as hidden chat context, while the visible prompt stays focused on what you want help with.
 
 When `auto_fence_code` is enabled, `leetcode.nvim` will also wrap obviously code-like assistant replies in a fenced code block before re-rendering the CodeCompanion buffer. This gives Treesitter a better chance to apply syntax highlighting even when the submission service forgets to fence the snippet itself.
+
+When the session timer is running, the winbar also shows `AI:on` or `AI:off` so you can see whether failed test and submit events will trigger your external static-analysis assistant.
 
 ## 📡 External Integration Example
 

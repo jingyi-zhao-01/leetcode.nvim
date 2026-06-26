@@ -25,6 +25,54 @@ local log = require("leetcode.logger")
 ---@field reset boolean
 local Question = Object("LeetQuestion")
 
+local function ai_assist_default_enabled()
+    local ai_assist = config.user.ai_assist or {}
+    return ai_assist.enabled ~= false
+end
+
+local function ai_assist_label(enabled)
+    local state = enabled and "on" or "off"
+    local hl = enabled and "leetcode_easy" or "leetcode_error"
+    return string.format(" %%#leetcode_alt#AI%%*:%%#%s#%s%%*", hl, state)
+end
+
+function Question:is_auto_ai_assist_enabled()
+    if self._auto_ai_assist_enabled == nil then
+        self._auto_ai_assist_enabled = ai_assist_default_enabled()
+    end
+    return self._auto_ai_assist_enabled
+end
+
+function Question:set_auto_ai_assist_enabled(enabled)
+    self._auto_ai_assist_enabled = not not enabled
+    if self._session_timer then
+        self:render_session_winbar()
+    end
+end
+
+function Question:toggle_auto_ai_assist()
+    local enabled = not self:is_auto_ai_assist_enabled()
+    self:set_auto_ai_assist_enabled(enabled)
+    return enabled
+end
+
+function Question:render_session_winbar(elapsed_s)
+    if not (self.winid and vim.api.nvim_win_is_valid(self.winid)) then
+        return
+    end
+
+    elapsed_s = elapsed_s or 0
+    local mins = math.floor(elapsed_s / 60)
+    local secs = elapsed_s % 60
+    local label = string.format(
+        " %%#leetcode_timer#⏱ %02d:%02d%%*%s",
+        mins,
+        secs,
+        ai_assist_label(self:is_auto_ai_assist_enabled())
+    )
+    vim.api.nvim_set_option_value("winbar", label, { win = self.winid })
+end
+
 ---@param raw? boolean
 function Question:snippet(raw)
     local snippets = self.q.code_snippets ~= vim.NIL and self.q.code_snippets or {}
@@ -347,15 +395,12 @@ function Question:start_timer_display()
 
     local function update_winbar()
         local elapsed_s = math.floor((vim.loop.hrtime() / 1e6 - start_ms) / 1000)
-        local mins = math.floor(elapsed_s / 60)
-        local secs = elapsed_s % 60
-        local label = string.format(" %%#leetcode_timer#⏱ %02d:%02d%%*", mins, secs)
         vim.schedule(function()
             if not (self.winid and vim.api.nvim_win_is_valid(self.winid)) then
                 self:stop_timer_display()
                 return
             end
-            vim.api.nvim_set_option_value("winbar", label, { win = self.winid })
+            self:render_session_winbar(elapsed_s)
         end)
     end
 
